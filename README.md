@@ -38,7 +38,8 @@ Get the script onto your RasPi
   * You should expand your rootfs to use the maximum space
   * Reboot your Pi
 
-* On your PC 
+* [optional] On your PC .. but you will need it in the future. eg: backups ... 
+* If you exclusively work on your RasPi skip this
   * Create a new key pair with `ssh-keygen`
     * do _NOT_ use the default name
     * save it to `/home/<yourName>/.ssh/pi_rsa`
@@ -55,7 +56,7 @@ Get the script onto your RasPi
     * if not you did it wrong :/
 
 * On your Pi in the home dir - get the `tweb-config` file 
-  * `wget the file from github`
+  * get the file from github
     * `wget https://raw.github.com/pmario/tweb-config/master/tweb-config`
   * `sudo ln -s /home/pi/tweb-config /usr/bin/tweb-config`
   * `sudo chmod +x tweb-config`
@@ -102,6 +103,6 @@ have fun!
 
 -mario
 
-PS: Do not activate "svscanboot" from the "sudo menue" except you know [daemontools](http://cr.yp.to/daemontools.html). There is no UI yet. 
+PS: Do not activate "svscanboot" from the "sudo menue" except you know [daemontools](http://cr.yp.to/daemontools.html). There is not enough UI yet. 
 
 homepage: http://raspberry-web.tiddlyspace.com (TBD)
