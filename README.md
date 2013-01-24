@@ -41,21 +41,22 @@ Get the script onto your RasPi
 * On your PC 
   * Create a new key pair with `ssh-keygen`
     * do _NOT_ use the default name
-    * save it to `/home/<yourName>/.ssh/pi_rsa
+    * save it to `/home/<yourName>/.ssh/pi_rsa`
     * leave the password empty `<enter><enter>`
     * done
   * Copy the newly created public key to your RasPi
-    * `ssh-copy -i .ssh/pi_ras.pub pi@<RasPi IP address>
+    * `ssh-copy -i .ssh/pi_ras.pub pi@<RasPi IP address>`
     * answere the question with `yes`
     * done
-  * Connect to your Pi with `ssh pi@<RasPi IP address>
+  * Connect to your Pi with `ssh pi@<RasPi IP address>`
     * again answere the questions with yes
   * You should see an autologin prompt now
     * `pi@raspberrypi ~ $`
     * if not you did it wrong :/
 
-* On your Pi - get the `tweb-config` file 
-  * `wget the file from github ... TODO`
+* On your Pi in the home dir - get the `tweb-config` file 
+  * `wget the file from github`
+    * `wget https://raw.github.com/pmario/tweb-config/master/tweb-config`
   * `sudo ln -s /home/pi/tweb-config /usr/bin/tweb-config`
   * `sudo chmod +x`
   * `which tweb-config` should show you `usr/bin/tweb-config` now.
@@ -98,7 +99,9 @@ Get the script onto your RasPi
   * The web UI is missing atm. But will be the next step :)
 
 have fun!
+
 -mario
+
 PS: Do not activate "svscanboot" from the "sudo menue" except you know [daemontools](http://cr.yp.to/daemontools.html). There is no UI yet. 
 
 homepage: http://raspberry-web.tiddlyspace.com (TBD)
