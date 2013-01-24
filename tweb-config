@@ -1,0 +1,744 @@
+#!/bin/bash
+# Many ideas of this file were borrowed from
+# raspi-config http://github.com/asb/raspi-config
+# many thanks to: Alex Bradbury
+#
+# copyright 2013 Mario Pietsch
+# See LICENSE file for copyright and license details
+
+# logging is active atm
+# have a look at the log file. It may contain usefull info!
+DO_LOGGING=1
+LOG_FILE=$PWD/tweb-config.log
+
+TWEB_HOME=/home/www-tweb
+
+# TODO: may be add some compressed PAYLOAD to the scripts
+#
+# some functions to create the basic recipes and bags.
+# __owner variables will be replaced
+#
+_fake_tmp() {
+echo "Name: __bag_private
+{\"policy\": {\"read\": [\"__owner\"], \"create\": [\"__owner\"], \"manage\": [\"__owner\"], \
+\"accept\": [], \"write\": [\"__owner\"], \"owner\": \"__owner\", \"delete\": [\"__owner\"]}, \
+\"desc\": \"\"}
+
+Name: __bag_public
+{\"policy\": {\"read\": [], \"create\": [], \"manage\": [\"__owner\"], \"accept\": [], \
+\"write\": [], \"owner\": \"__owner\", \"delete\": []}, \
+\"desc\": \"\"}
+
+Name: __bag_protected
+{\"policy\": {\"read\": [], \"create\": [\"__owner\"], \"manage\": [\"__owner\"], \
+\"accept\": [], \"write\": [\"__owner\"], \"owner\": \"__owner\", \"delete\": [\"__owner\"]}, \
+\"desc\": \"\"}
+"
+}
+
+_fake_recipe_public() {
+echo "desc: __description
+policy: {\"read\": [], \"create\": [], \"manage\": [\"__owner\"], \"accept\": [], \
+\"write\": [], \"owner\": \"__owner\", \"delete\": []}
+
+/bags/system/tiddlers
+/bags/__bag_protected/tiddlers
+/bags/__bag_public/tiddlers
+"
+}
+
+_fake_recipe_private(){
+echo "desc: __description
+policy: {\"read\": [\"__owner\"], \"create\": [], \"manage\": [\"__owner\"], \"accept\": [], \
+\"write\": [], \"owner\": \"__owner\", \"delete\": []}
+
+/bags/system/tiddlers
+/bags/__bag_public/tiddlers
+/bags/__bag_protected/tiddlers
+/bags/__bag_private/tiddlers
+"
+}
+
+#_fake_tmp > tmp
+#_fake_recipe_public > pub.tmp
+#_fake_recipe_private > priv.tmp
+#exit 1
+
+# ===================================================================
+
+#
+# Info screen for a "normal" user
+#
+do_info() {
+  whiptail --msgbox "\
+This tool provides a straight-forward way of doing minimal
+configuration of TiddlyWeb. Although it can be run
+at any time, some of the options may have difficulties if
+you have heavily customised your installation.
+
+The command is: tweb-config
+" 20 70 1
+}
+
+#
+# Info screen for a sudoer. The only sudoer should be user: pi
+#
+do_info_sudo() {
+  whiptail --msgbox "\
+This tool provides a straight-forward way of doing minimal
+configuration of TiddlyWeb. Although it can be run
+at any time, some of the options may have difficulties if
+you have heavily customised your installation.
+
+The command is: 'sudo tweb-config' or
+'tweb-config' if you are inside a TW instance directory
+" 16 70 1
+}
+
+#
+# change the OS user password
+#
+do_change_pass() {
+  whiptail --msgbox "You will now be asked to enter a new password for the pi user" 20 60 1
+  passwd &&
+  whiptail --msgbox "Password changed successfully" 20 60 1
+}
+
+#
+# TODO update the tweb-config script
+#
+do_sudo_update() {
+  local a
+#  git
+
+#  apt-get install raspi-config &&
+#  printf "Sleeping 5 seconds before reloading raspi-config\n" &&
+#  sleep 5 &&
+#  exec raspi-config
+}
+
+
+#
+# write some text to the tweb-config.log file
+#
+_log_simple() {
+    echo "$1" >> "$LOG_FILE"
+}
+
+#
+# write text plus timestamp to the log file
+#
+_log_text(){
+
+# simple grep to get the info out ...
+# grep -i "FAIL" tweb-config.log
+# cat tweb-config.log | grep -i "FAIL"
+#
+# this is a filter for commands
+# cat tweb-config.log | sed -n 's;.*\execute command: \(.*\);\1;p'
+#
+# more specific filter: commands at 14:05 ...
+# cat tweb-config.log | sed -n 's;.*14:05.*\execute command: \(.*\);\1;p'
+#
+
+  local TEXT
+  if [ $DO_LOGGING -eq 1 ]; then
+    TEXT=$(date)
+    echo "$TEXT -> $1" >> "$LOG_FILE"
+  fi
+}
+
+#
+# Display a user list from the database
+#
+do_get_users() {
+  local USERS
+  local SELECTION
+
+  echo "twanager lusers"
+  _log_text "command: twanager lusers"
+  USERS=$(twanager lusers | awk '{ print $1 " " $1 }')
+  SELECTION=$(whiptail --nocancel  --menu "Found this users: " \
+    --title "Existing Users" 20 40 12 $USERS  \
+    3>&1 1>&2 2>&3)
+
+  if [ $? -eq 0 ]; then
+    TWEB_USER=$SELECTION
+  fi
+
+# TODO remove when finised!!
+#
+# the sed covers the first word in "" and the rest in ""
+#  echo "whiptail --menu \"asdf\" --title \"Existing Users\"  20 40 12 \" > /tmp/tmp.txt
+# twanager lusers | sed -n 's;\([^ ]*\) \(.*\); "\1" "\2";p' | tr '\n' ' ' >> /tmp/tmp.txt
+#echo " 3>&1 1>&2 2>&3" >> /tmp/tmp.txt
+}
+
+#
+# Display a recipes list from database
+#
+do_get_recipes() {
+  echo "twanager lrecipes"
+  _log_text "command: twanager lrecipes"
+
+    RECIPES=$(twanager lrecipes | grep -i -E -v "^\(.+\)" | awk '{ print $1 " " $1 }')
+    whiptail --nocancel --menu "This are the existing TiddlyWikies" --title "Existing TWs" 20 60 12 $RECIPES \
+      3>&1 1>&2 2>&3
+
+#      whiptail --msgbox --title "Existing TiddlyWiki's" "$RECIPES" 10 40
+}
+
+#
+# Display a bags list form database
+#
+do_get_bags() {
+#  twanager lbags | grep -i Name: | awk '{ print $2 }' > /tmp/bags.txt
+#      whiptail --textbox --title "Existing bags" /tmp/bags.txt 10 40
+
+  echo "twanager lbags"
+  _log_text "command: twanager lbags"
+  BAGS=$(twanager lbags | grep -i Name: | awk '{ print $2 " " $2}' | tr '\n' ' ' )
+  whiptail --nocancel --menu "This are the existing bags" --title "Existing bags" 20 60 12 $BAGS \
+    3>&1 1>&2 2>&3
+}
+
+if [ -z $TWEB_USER ]; then
+  TWEB_USER="YourName"
+fi
+
+#
+# Manually set active user
+#
+do_set_active_user() {
+  TWEB_USER=$(whiptail --inputbox --nocancel --title "Active User: "$TWEB_USER \
+    "New User name:" 10 40 $TWEB_USER \
+    3>&1 1>&2 2>&3)
+
+  whiptail --msgbox "user was set to: "$TWEB_USER 10 40
+  _log_text "active user set to: $TWEB_USER"
+}
+
+#
+# Define the TiddlyWeb password. NOT the system pw
+#
+_define_password() {
+  local PW_B
+  local PW_A
+
+  PW_A=$(whiptail --passwordbox --nocancel --title "Enter password" \
+    "Enter a password for the new user name: "$TWEB_USER 10 40 \
+    3>&1 1>&2 2>&3)
+
+  if [ $? -eq 0 ]; then 
+    PW_B=$(whiptail --passwordbox "Enter the password again" \
+      --nocancel --title "Verify password" 10 40 \
+    3>&1 1>&2 2>&3)
+  fi
+
+  if [ $? -eq 0 ] && [ "$PW_A" != "$PW_B" ]; then
+    PW_A=""
+    whiptail --msgbox "Passwords have to be the same."  10 40
+  fi
+  echo "$PW_A"
+}
+
+#
+# Create a new TiddlyWEb user
+#
+do_create_user() {
+  local PASSWORD
+
+  do_set_active_user
+
+  PASSWORD=$(_define_password)
+
+  if [ "$PASSWORD" != "" ] && [ "$TWEB_USER" != "" ]; then
+    twanager adduser $TWEB_USER $PASSWORD
+    if [ $? -eq 0 ]; then
+      _log_text "user created: $TWEB_USER"
+      whiptail --msgbox "The new user: \"$TWEB_USER\" created! - $PASSWORD"  10 40 
+     else
+      _log_text "user creation FAILD"
+      whiptail --msgbox "No user created!"  10 40
+    fi
+  fi
+}
+
+# I want to have special names for system stuff. 
+# eg: system should be __system
+# the following patches change the "default" recipes and bags "system " and "console"
+
+T_RECIPE=$PWD/.recipe.default.bak
+
+D_RECIPE=store/recipes/default
+N_RECIPE=store/recipes/__default
+
+BAG_P=store/bags
+
+#
+# Rename several predifined recipes and bags
+#
+# TODO some plugins contain hardcoded references FIX THIS
+#
+do_patch_tiddlywebwiki() {
+  if [ ! -f $N_RECIPE ]; then
+#    cat $D_RECIPE | sed -e 's/system/__system/g' | sed -e 's/common/__common/g' > "$N_RECIPE"
+    cat $D_RECIPE | sed -e 's/system/__system/g'  > "$N_RECIPE"
+    mv "$D_RECIPE" "$T_RECIPE"
+
+    _log_text "pached: $D_RECIPE"
+    _log_simple "`cat $N_RECIPE`"
+    _log_text "renamed: $D_RECIPE -> $N_RECIPE"
+    _log_text "moved: $D_RECIPE -> $T_RECIPE"
+  fi
+
+  if [ -d $BAG_P/system ]; then
+    mv $BAG_P/system $BAG_P/__system
+    _log_text "renamed: $BAG_P/system -> $BAG_P/__system"
+  fi
+
+#  if [ -d $BAG_P/console ]; then
+#    mv $BAG_P/console $BAG_P/__console
+#    _log_text "renamed: $BAG_P/console -> $BAG_P/__console"
+#  fi
+}
+
+# Removing the patch is for testing this file only. 
+# It may break stuff, if you copy the backup recipe back to its old position
+# It may have been changed allredy! ....
+do_restore_tiddlywebwiki() {
+  if [ -f $T_RECIPE ]; then
+    mv $T_RECIPE $D_RECIPE
+    rm $N_RECIPE
+    mv $BAG_P/__system $BAG_P/system
+    mv $BAG_P/__console $BAG_P/console
+  fi
+}
+
+#
+# Define a new recipe name to create a new TiddlyWiki
+#
+_define_recipe_name() {
+  RECIPE_NAME=$(whiptail --inputbox --nocancel --title "Create New TiddlyWiki" \
+    "New TiddlyWiki Name:" 10 40 "MyNewTW" \
+    3>&1 1>&2 2>&3)
+
+#  whiptail --msgbox "user was set to: "$RECIPE_NAME 10 40
+#  _log_text "TW name set to: $RECIPE_NAME"
+}
+
+
+#
+# Create directories and "run" files for service daemon
+#
+do_prepare_daemon() {
+  local DIR="$PWD"
+  local RUN_FILE="$DIR"/service/run
+  local LOG_RUN_FILE="$DIR"/service/log/run
+
+  whiptail --yesno "Prepare autostart in dir: $DIR \
+\"/service\" directory and \"run\" files will be created" 10 50 \
+    3>&1 1>&2 2>&3
+
+  if [ $? -eq 0 ] && [ ! -f "$RUN_FILE" ]; then
+
+    echo create the /service directory in: "$PWD"
+    mkdir "$DIR"/service
+    mkdir "$DIR"/service/log
+    mkdir "$DIR"/service/log/main
+
+    echo create "$RUN_FILE"
+
+    # be carefull. !
+    # The "$DIR" in the "cd" line below, needs to be substituted!
+    echo "#!/bin/sh
+cd "$DIR"
+_IP=\$(hostname -I) || true
+if [ \"\$_IP\" ]; then
+  exec setuidgid www-tweb twanager server \"\$_IP\" 8080
+else
+  exec setuidgid www-tweb twanager server
+fi" > "$RUN_FILE"
+
+    chmod +x "$RUN_FILE"
+
+    echo create "$LOG_RUN_FILE"
+    echo "#!/bin/sh
+exec setuidgid www-tweb multilog t ./main" > "$LOG_RUN_FILE"
+
+    chmod +x "$LOG_RUN_FILE"
+    echo '---- done ----'
+    sleep 2
+  else
+    whiptail --msgbox "User cancel or run files exist" 10 40
+  fi
+}
+
+#
+# All steps needed to create a new TiddlyWiki
+#
+do_create_tiddlywiki() {
+  _define_recipe_name
+
+  do_get_users
+
+  whiptail --yesno "Create a new TiddlyWiki named: $RECIPE_NAME \
+    for the user: $TWEB_USER " 10 50 \
+    3>&1 1>&2 2>&3
+
+RECIPE_DESCRIPTION="Here comes the TW description TODO"
+
+  # name dialog must be OK, recipe must not exists, recipe name must be set.
+  if [ $? -eq 0 ] && [ ! -f $RECIPE_NAME"__public" ] && [ $RECIPE_NAME != "" ]; then
+
+# TODO ugly ugly ugly 
+#    cat store/recipes/__recipe_public | \
+    _fake_recipe_public | \
+      sed -e 's;__owner;'$TWEB_USER';g' -e 's;__bag;'$RECIPE_NAME';g' \
+          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' >store/recipes/"$RECIPE_NAME"_public
+
+#    cat store/recipes/__recipe_private | \
+    _fake_recipe_private | \
+      sed -e 's;__owner;'$TWEB_USER';g' -e 's;__bag;'$RECIPE_NAME';g' \
+          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' >store/recipes/"$RECIPE_NAME"_private
+
+    # this works but imo is ugly
+    # any help is HIGHLIY appreciated!
+    #
+    twanager lbags __bag_private __bag_public __bag_protected > tmp
+
+    # TODO feature request: twanager should have a silent option.
+    # if twanager fails tmp is zerro size
+    if [ ! -s tmp ]; then
+       echo ""
+       echo "ERROR reading bag info - use default settings!"
+       _fake_tmp > tmp
+    fi
+
+# hardcore TODO fix 
+    cat tmp | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_private
+    cat tmp | sed -n 5p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_public
+    cat tmp | sed -n 8p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_protected
+
+#    cp -T store/recipes/__recipe_public store/recipes/$RECIPE_NAME"_public"
+#    cp -T store/recipes/__recipe_private store/recipes/$RECIPE_NAME"_private"
+
+# hardcore TODO fix 
+#    cp -r -T store/bags/__bag_private store/bags/$RECIPE_NAME"_private"
+#    cp -r -T store/bags/__bag_protected store/bags/$RECIPE_NAME"_protected"
+#    cp -r -T store/bags/__bag_public store/bags/$RECIPE_NAME"_public"
+
+  else
+    whiptail --msgbox "ERROR: No TW created" 10 40
+  fi
+}
+
+do_finish() {
+  echo -- Setup complete!
+  echo -- You can start your server now with
+  echo -- twanager server $(hostname -I) 8080
+  echo ""
+  exit 0
+}
+
+#
+# Interactive user loop without root access
+#
+
+user_menue() {
+
+clear
+_log_text "=========================="
+
+  while true; do
+    FUN=$(whiptail --menu "TiddlWeb at home - Active user is: "$TWEB_USER \
+      20 80 12 --cancel-button Finish --ok-button Select \
+      "info" "Information about this tool" \
+      "get_users" "1 - Show a list of users" \
+      "get_recipes" "Show existing TiddlyWiki (recipes)" \
+      "get_bags" "Show existing bags" \
+      "create_user" "2 - Create a new user" \
+      "create_tiddlywiki" "3 - Create a new TiddlyWiki" \
+      "prepare_daemon" "4 - Prepare TWeb for autorun at startup" \
+      "user_password" "Set a new user password" \
+      "set_active_user" "Set active user" \
+      "restore_tiddlywebwiki" "(restore) Restore TiddlyWebWiki TODO move 2 subm" \
+      "patch_tiddlywebwiki" "(patch) Prepare TiddlyWebWiki <- move to submenue" \
+      3>&1 1>&2 2>&3)
+    RET=$?
+    if [ $RET -eq 1 ]; then
+      do_finish
+    elif [ $RET -eq 0 ]; then
+      clear
+      echo "command: $FUN - in action! ..."
+      "do_$FUN" || whiptail --msgbox "There was an error running do_$FUN" 20 60 1
+    else
+      exit 1
+    fi
+  done
+}
+
+# ====================================================
+# vvvvvvvvvvvvvv  User needs to be sudoer !!!
+
+#
+# update the operating system.
+#
+do_sudo_upgrade() {
+  whiptail --title "Upgrade the OS" --yesno "This command will run:
+
+sudo apt-get update
+sudo apt-get upgrade
+
+It may take several minutes
+" 15 50 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK, 
+  if [ $? -eq 0 ]; then
+    apt-get -y update
+    apt-get -y upgrade
+
+    echo ---- done ----
+    sleep 5
+  fi
+}
+
+#
+# install dependencies for tiddlyweb
+#
+do_sudo_get_dependencies() {
+  whiptail --title "Get TiddlyWeb dependencies" --yesno "This command will run:
+
+sudo apt-get install python2.7-dev python-pip git mc htop atop csh
+
+It may take several minutes
+" 15 50 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK, 
+  if [ $? -eq 0 ]; then
+    apt-get -y install python2.7-dev python-pip git mc htop atop csh
+    echo ---- done ----
+    sleep 5
+  fi
+}
+
+#
+# create a new www-tweb user. Be aware, this is a system user
+#
+do_sudo_adduser() {
+# see: http://www.debianadmin.com/users-and-groups-administration-in-linux.html
+
+  whiptail --title "Create www-tweb user" --yesno "This command will run:
+
+sudo adduser www-tweb
+
+You will be asked for the initial password!
+" 15 50 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK, 
+  if [ $? -eq 0 ]; then
+    adduser www-tweb
+    echo ---- done ----
+    sleep 5
+  fi
+}
+
+
+#
+# install tiddlywebwiki package from pypi repositories
+#
+do_sudo_pip_tiddlywebwiki() {
+# see: http://www.debianadmin.com/users-and-groups-administration-in-linux.html
+
+  whiptail --title "Install TiddlyWebWiki" --yesno "This command will run:
+
+sudo pip install -U tiddlywebwiki
+
+It may take several minutes!
+" 15 50 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK, 
+  if [ $? -eq 0 ]; then
+    pip install -U tiddlywebwiki
+    echo ---- done ----
+    sleep 5
+  fi
+}
+
+
+#
+# BE CAREFUL when testing. Rename the ETC_RC_LOCAL variable
+# This command inserts the svscanboot command into /etc/rc.local
+# Since it is not the only command there, the "exit 0" line has to be shifted
+# It runs a test against the rc.local file. If "www-tweb" is there, the file is NOT modified
+#
+do_sudo_prepare_rc_local() {
+  local ETC_RC_LOCAL="/etc/rc.local"
+
+  whiptail --title "Prepare Server Autostart" --yesno "This command will add daemontools settings
+to $ETC_RC_LOCAL
+
+# www-tweb deamontools settings
+echo ------------------------------
+echo Starting the TiddlyWeb server!
+
+csh -cf '/usr/bin/svscanboot &'
+
+echo type: cat /var/log/svscan  -  to see any errors
+echo -----------------------------------------------
+
+" 20 60 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK,
+  if [ $? -eq 0 ]; then
+
+    # check if content is allready there and prepare the web daemon
+    if [ -z "$(cat $ETC_RC_LOCAL | grep -i www-tweb)" ]; then
+
+      # !!! be carefull about the sed comand. It is tricky
+      # the following command searches for "^exit 0" and replaces it with content
+      # and saves it back to the file
+      sed -i "/^exit 0/ {
+        a #\n\
+# Created by tweb-conf script. Do NOT change the enclosing comments!\n\
+# www-tweb deamontools settings\n\
+echo ------------------------------\n\
+echo Starting the TiddlyWeb server!\n\n\
+csh -cf '/usr/bin/svscanboot &'\n\n\
+echo type: cat /var/log/svscan  -  to see any errors\n\
+echo -----------------------------------------------\n
+        a exit 0\n
+        d
+      }" $ETC_RC_LOCAL
+
+      echo "create the /service directory!"
+      mkdir /service
+    else 
+      whiptail --msgbox "$ETC_RC_LOCAL is allready modified. No changes applyed!" 10 40
+    fi
+    echo ---- done ----
+    sleep 3
+  fi
+}
+
+# function to show running supervise processes
+# ps axjf | grep -o "supervise [^log][a-zA-Z].*"
+
+do_sudo_tweb_autostart() {
+  local INSTANCES
+  local SELECTION
+
+  echo "list instances"
+  _log_text "command: ls -w 1 $TWEB_HOME"
+  INSTANCES=$(ls -w 1 "$TWEB_HOME" | awk '{ print $1 " " $1 }')
+  SELECTION=$(whiptail --nocancel  --menu "Found this TW instances: " \
+    --title "Select an instance" 20 40 12 $INSTANCES  \
+    3>&1 1>&2 2>&3)
+
+  if [ $? -eq 0 ]; then
+    local RUNNING_WEBS=$(ps axjf | grep -o "supervise [^log][a-zA-Z].*" | awk '{ print $2 }')
+
+    if [ -z "$RUNNING_WEBS"  ]; then
+      echo create link /service/"$SELECTION"
+      echo it takes up to 5 seconds!
+      ln -s "$TWEB_HOME"/"$SELECTION"/service /service/"$SELECTION"
+
+      sleep 6
+      svok "$SELECTION"
+      if [ $? -eq 0 ]; then
+        whiptail --msgbox "process started successfully!" 10 40
+      else
+        cat /var/log/svscan
+        sleep 10
+#       whiptail --msgbox "ERROR: type cat /var/log/svscan to see what's wrong" 10 40
+      fi
+    else
+      echo "there is an instance running. It must be down.
+tweb-config can't handle this situation yet!
+
+remove the links from /service directory!"
+      sleep 10
+    fi
+  fi
+}
+
+#
+# The final dialog just prints some info about the next steps to the command line
+#
+CMD_TWEB="tweb_message"
+TXT_TWEB="Log in as www-tweb user"
+
+do_tweb_message() {
+  whiptail --title "Final Dialog" --yesno "This command will end this menu
+
+Log in with \"su www-tweb\" and start \"tweb-config\" again for more stuff to do!
+
+" 15 50 \
+    3>&1 1>&2 2>&3
+
+  # name dialog must be OK, 
+  if [ $? -eq 0 ]; then
+    echo "type: "
+    echo "-- su www-tweb"
+    echo "-- cd"
+    echo "-- twinstance tweb && cd tweb"
+    echo "-- tweb-config"
+    exit 1
+  fi
+}
+
+#
+# Interactive user loop where root access is needed.
+#
+root_menue() {
+clear
+_log_text "=========================="
+  while true; do
+    FUN=$(whiptail --title "Superuser menu" \
+      --menu "IMPORTANT: Read the info provided by the commands!" \
+      16 80 8 --cancel-button Finish --ok-button Select \
+      "info_sudo" "1 - Information about this tool in super user mode" \
+      "sudo_upgrade" "2 - Update the operating system" \
+      "sudo_get_dependencies" "3 - Install TiddlyWeb dependencies" \
+      "sudo_adduser" "4 - Add the www-tweb user to the system" \
+      "sudo_pip_tiddlywebwiki" "5 - Install the TiddlWebWiki system" \
+      "$CMD_TWEB" "6 - $TXT_TWEB" \
+      "sudo_prepare_rc_local" "Activate daemontools boot process" \
+      "sudo_tweb_autostart" "Activate a TWeb project for autostart" \
+      "sudo_update" "Try to upgrade tweb-config" \
+      3>&1 1>&2 2>&3)
+    RET=$?
+    if [ $RET -eq 1 ]; then
+      do_finish
+    elif [ $RET -eq 0 ]; then
+      clear
+      echo "command: $FUN - in action! ..."
+      "do_$FUN" || whiptail --msgbox "There was an error running do_$FUN" 20 60 1
+    else
+      exit 1
+    fi
+  done
+}
+
+# Everything else needs to be run as root
+if [ $(id -u) -eq 0 ]; then
+    root_menue
+    exit 0
+else
+  # test if we are inside a TW instance directory.
+  if [ -e $PWD/tiddlywebconfig.py ]; then
+    user_menue
+    exit 0
+  else
+    echo "-- You need to be user www-tweb inside a TW instance directory "
+    echo "-- OR: You need to start with 'sudo tweb-config'"
+    exit 1
+  fi
+fi
+
+
