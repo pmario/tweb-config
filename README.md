@@ -75,10 +75,10 @@ Get the script onto your RasPi
   * Follow the steps printed by the "Login as www-tweb user"
   * `su www-tweb` .. log into your www-tweb user - I hope, you can remember your PW
   * `cd` .. to home directory
-  * twinstance tweb && cd tweb
+  * `twinstance tweb && cd tweb`
   * `tweb-config` .. follow steps 1-26
-    * I'm joking ;)
-    * 1 .. There should be "administrator" user only
+      * I'm joking ;)
+    * 1 .. List users - there should be "administrator" user only
     * 2 .. Create a new TiddlyWeb user .. follow the steps
       * Try 1 again.
     * 3 .. Create a new TiddlyWiki .. follow the steps
@@ -90,15 +90,15 @@ Get the script onto your RasPi
   * `twanager server IP PORT` .. see the info printed
 
 * On your PC open
-  * http://<yourIPHere>:8080/recipes/MyNewTW_public/tiddlers.wiki
+  * `http://<yourIPHere>:8080/recipes/MyNewTW_public/tiddlers.wiki`
 
 * Login to get the "private recipe"
-  * http://<yourIPHere>:8080/challenge
+  * `http://<yourIPHere>:8080/challenge`
   * There is no "Logout" button yet. Just login with a different user
   * The web UI is missing atm. But will be the next step :)
 
 have fun!
 -mario
-PS: Do not activate "svscanboot" from the "sudo menue" except you know (daemontools)[http://cr.yp.to/daemontools.html]. There is no UI yet. 
+PS: Do not activate "svscanboot" from the "sudo menue" except you know [daemontools](http://cr.yp.to/daemontools.html). There is no UI yet. 
 
 homepage: http://raspberry-web.tiddlyspace.com (TBD)
