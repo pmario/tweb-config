@@ -46,10 +46,10 @@ Get the script onto your RasPi
     * done
   * Copy the newly created public key to your RasPi
     * `ssh-copy -i .ssh/pi_ras.pub pi@<RasPi IP address>`
-    * answere the question with `yes`
+    * answer the question with `yes`
     * done
   * Connect to your Pi with `ssh pi@<RasPi IP address>`
-    * again answere the questions with yes
+    * again answer the questions with yes
   * You should see an autologin prompt now
     * `pi@raspberrypi ~ $`
     * if not you did it wrong :/
@@ -58,18 +58,18 @@ Get the script onto your RasPi
   * `wget the file from github`
     * `wget https://raw.github.com/pmario/tweb-config/master/tweb-config`
   * `sudo ln -s /home/pi/tweb-config /usr/bin/tweb-config`
-  * `sudo chmod +x`
+  * `sudo chmod +x tweb-config`
   * `which tweb-config` should show you `usr/bin/tweb-config` now.
 
 * On your Pi
   * `cd`
   * `sudo tweb-config`
   * follow the steps 1-6
-    * 2 .. 20 min (class 4 SD card)
-    * 3 .. 7 min
-    * 4 .. 1 min
-    * 5 .. 6 min
-    * 6 .. 20 seconds
+    * 2 .. OS upgrade .. 20 min (class 4 SD card)
+    * 3 .. Install TWeb dependencies .. 7 min
+    * 4 .. New system user www-tweb .. 1 min
+    * 5 .. Install TiddlyWebWiki .. 6 min
+    * 6 .. Login as www-tweb .. 20 seconds
   * The other steps will be needed, when your TWeb instances are working
 
 * On your Pi
