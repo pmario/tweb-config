@@ -12,7 +12,7 @@ Usage:
 
 * There are 2 possibilities to use the script
   * as standard user
-  * as sudoer
+  * as sudoer (user pi)
 
 ```
 pi@raspberrypi ~ $ sudo tweb-config
@@ -29,17 +29,18 @@ Will help you to get the TiddlyWeb sttings going.
 Get the script onto your RasPi
 ------------------------------
 
-* Be sure you did the initial setup 
+**Be sure you did the initial setup**
   * Change your pi password to a strong password, that you can remember
   * Be sure you saw the RasPi IP address, the Pi printed it at startup
   * If you didn't type: `hostname -I' and note it down.
   * IMPORTANT set the  "memory split" to -> `16` .. we will need our memory but no graphics
   * SSH daemon should be active
-  * You should expand your rootfs to use the maximum space
+  * You should expand your rootfs to use the maximum space 
   * Reboot your Pi
 
-* [optional] On your PC .. but you will need it in the future. eg: backups ... 
-* If you exclusively work on your RasPi skip this
+**[optional] On your PC .. but you will need it in the future. eg: backups ...**
+
+**If you exclusively work on your RasPi skip this**
   * Create a new key pair with `ssh-keygen`
     * do _NOT_ use the default name
     * save it to `/home/<yourName>/.ssh/pi_rsa`
@@ -55,16 +56,24 @@ Get the script onto your RasPi
     * `pi@raspberrypi ~ $`
     * if not you did it wrong :/
 
-* On your Pi in the home dir - get the `tweb-config` file 
-  * get the file from github
-    * `wget https://raw.github.com/pmario/tweb-config/master/tweb-config`
-  * `sudo ln -s /home/pi/tweb-config /usr/bin/tweb-config`
-  * `sudo chmod +x tweb-config`
+**On your Pi in the home dir - get the `tweb-config` file**
+  * get the file from github, make it executable and link it to `/usr/bin/`
+
+```
+ wget https://raw.github.com/pmario/tweb-config/master/tweb-config
+ sudo ln -s /home/pi/tweb-config /usr/bin/tweb-config
+ sudo chmod +x tweb-config
+```
+
   * `which tweb-config` should show you `usr/bin/tweb-config` now.
 
-* On your Pi
-  * `cd`
-  * `sudo tweb-config`
+**On your Pi**
+
+```
+cd ~
+sudo tweb-config
+```
+
   * follow the steps 1-6
     * 2 .. OS upgrade .. 20 min (class 4 SD card)
     * 3 .. Install TWeb dependencies .. 7 min
@@ -73,11 +82,12 @@ Get the script onto your RasPi
     * 6 .. Login as www-tweb .. 20 seconds
   * The other steps will be needed, when your TWeb instances are working
 
-* On your Pi
+**On your Pi**
   * Follow the steps printed by the "Login as www-tweb user"
   * `su www-tweb` .. log into your www-tweb user - I hope, you can remember your PW
-  * `cd` .. to home directory
-  * `twinstance tweb && cd tweb`
+  * `cd ~` .. to home directory
+  * `twinstance tweb`
+  * `cd tweb`
   * `tweb-config` .. follow steps 1-26
       * I'm joking ;)
     * 1 .. List users - there should be "administrator" user only
@@ -88,14 +98,15 @@ Get the script onto your RasPi
   * EXIT tweb-confg now
     * Do NOT use the last 2 commands atm. (except you read the source and understand what they do :)
 
-* Start the server
+**Start the server**
   * `twanager server IP PORT` .. see the info printed
 
-* On your PC open
+**On your PC open**
   * `http://<yourIPHere>:8080/recipes/MyNewTW_public/tiddlers.wiki`
 
-* Login to get the "private recipe"
+**Login to get the private recipe/TiddlyWiki**
   * `http://<yourIPHere>:8080/challenge`
+  * It will only work, if you did create a new user. GUEST is the default user.
   * There is no "Logout" button yet. Just login with a different user
   * The web UI is missing atm. But will be the next step :)
 
@@ -105,4 +116,4 @@ have fun!
 
 PS: Do not activate "svscanboot" from the "sudo menue" except you know [daemontools](http://cr.yp.to/daemontools.html). There is not enough UI yet. 
 
-homepage: http://raspberry-web.tiddlyspace.com (TBD)
+homepage: http://tweb-at-home.tiddlyspace.com (TBD)
