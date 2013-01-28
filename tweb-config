@@ -434,6 +434,7 @@ RECIPE_DESCRIPTION="Here comes the TW description TODO"
 }
 
 do_finish() {
+  echo ""
   echo -- Setup complete!
   echo -- You can start your server now with
   echo -- twanager server $(hostname -I) 8080
@@ -674,9 +675,11 @@ CMD_TWEB="tweb_message"
 TXT_TWEB="Log in as www-tweb user"
 
 do_tweb_message() {
-  whiptail --title "Final Dialog" --yesno "This command will end this menu
+  whiptail --title "Final Dialog" --yesno "This menue will be closed now.
 
-Log in with \"su www-tweb\" and start \"tweb-config\" again for more stuff to do!
+Log in with \"su www-tweb\" - su will ask for the password!
+
+Start \"tweb-config\" (NO sudo) again for more stuff to do!
 
 " 15 50 \
     3>&1 1>&2 2>&3
@@ -685,8 +688,9 @@ Log in with \"su www-tweb\" and start \"tweb-config\" again for more stuff to do
   if [ $? -eq 0 ]; then
     echo "type: "
     echo "-- su www-tweb"
-    echo "-- cd"
-    echo "-- twinstance tweb && cd tweb"
+    echo "-- cd ~"
+    echo "-- twinstance tweb"
+    echo "-- cd tweb"
     echo "-- tweb-config"
     exit 1
   fi
@@ -735,8 +739,9 @@ else
     user_menue
     exit 0
   else
-    echo "-- You need to be user www-tweb inside a TW instance directory "
-    echo "-- OR: You need to start with 'sudo tweb-config'"
+    echo "-- You need to be user www-tweb inside a TW instance directory (tweb)"
+    echo "-- cd tweb"
+    echo "-- OR: You need to start with 'sudo tweb-config' as user 'pi'"
     exit 1
   fi
 fi
