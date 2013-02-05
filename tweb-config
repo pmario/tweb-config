@@ -1,10 +1,14 @@
 #!/bin/bash
-# Many ideas of this file were borrowed from
-# raspi-config http://github.com/asb/raspi-config
-# many thanks to: Alex Bradbury
-#
 # copyright 2013 Mario Pietsch
 # See LICENSE file for copyright and license details
+#
+# Some ideas of this file were borrowed from
+# raspi-config http://github.com/asb/raspi-config
+# thanks to: Alex Bradbury
+
+# IMPORTANT- Do not mess with this verison number 
+# the update script needs it at the moement!
+VERSION=0.0.2
 
 # logging is active atm
 # have a look at the log file. It may contain usefull info!
@@ -108,13 +112,24 @@ do_change_pass() {
 # TODO update the tweb-config script
 #
 do_sudo_update() {
-  local a
-#  git
+  local BAK=`date +%Y.%m.%d-%H-%M-%S`
+  cd /home/pi
 
-#  apt-get install raspi-config &&
-#  printf "Sleeping 5 seconds before reloading raspi-config\n" &&
-#  sleep 5 &&
-#  exec raspi-config
+  mv "$PWD/tweb-config" "$PWD/tweb-config.$BAK"
+  wget https://raw.github.com/pmario/tweb-config/master/tweb-config
+
+  if [ -f "$PWD/tweb-config" ]; then
+    chown pi:pi "$PWD/tweb-config"
+    chmod +x "$PWD/tweb-config"
+    whiptail --msgbox "\"tweb-config\" script updated!" 10 60 1
+  else
+    cp "$PWD/tweb-config.$BAK" "$PWD/tweb-config"
+    chown pi:pi "$PWD/tweb-config"
+    chmod +x "$PWD/tweb-config"
+    whiptail --msgbox "ERROR: Something went wrong! Old script reactivated!" 10 60 1
+  fi
+
+  exec tweb-config
 }
 
 
@@ -129,7 +144,6 @@ _log_simple() {
 # write text plus timestamp to the log file
 #
 _log_text(){
-
 # simple grep to get the info out ...
 # grep -i "FAIL" tweb-config.log
 # cat tweb-config.log | grep -i "FAIL"
@@ -488,14 +502,14 @@ _log_text "=========================="
 do_sudo_upgrade() {
   whiptail --title "Upgrade the OS" --yesno "This command will run:
 
-sudo apt-get update
-sudo apt-get upgrade
+sudo apt-get -y update
+sudo apt-get -y upgrade
 
 It may take several minutes
 " 15 50 \
     3>&1 1>&2 2>&3
 
-  # name dialog must be OK, 
+  # name dialog must be OK,
   if [ $? -eq 0 ]; then
     apt-get -y update
     apt-get -y upgrade
@@ -517,9 +531,9 @@ It may take several minutes
 " 15 50 \
     3>&1 1>&2 2>&3
 
-  # name dialog must be OK, 
+  # name dialog must be OK,
   if [ $? -eq 0 ]; then
-    apt-get -y install python2.7-dev python-pip git mc htop atop csh
+    apt-get -y install python2.7-dev python-pip git mc htop csh
     echo ---- done ----
     sleep 5
   fi
@@ -705,7 +719,7 @@ _log_text "=========================="
   while true; do
     FUN=$(whiptail --title "Superuser menu" \
       --menu "IMPORTANT: Read the info provided by the commands!" \
-      16 80 8 --cancel-button Finish --ok-button Select \
+      18 80 10 --cancel-button Finish --ok-button Select \
       "info_sudo" "1 - Information about this tool in super user mode" \
       "sudo_upgrade" "2 - Update the operating system" \
       "sudo_get_dependencies" "3 - Install TiddlyWeb dependencies" \
