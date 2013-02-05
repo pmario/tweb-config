@@ -1,9 +1,13 @@
 tweb-config
 ===========
 
-A shell script to get started with TiddlyWeb on the RaspberryPi
+A shell script to get started with TiddlyWeb on the RaspberryPi.
 
-State: ALPHA
+State: **ALPHA** ... so this file is under heavy development, and may change quite a lot. I try to push versions, that I've tested.
+
+If you find a bug, create an [issue](https://github.com/pmario/tweb-config/issues) here at github or at the [TiddlyWeb](https://groups.google.com/forum/?hl=en&fromgroups#!forum/tiddlyweb) discussion group. Suggestions and pull requests are very welcome!
+
+I'm new to shell scripting, so if you have some best practice advice, let my know :)
 
 In the end this file will land in `/usr/bin` on the RasPi.
 
