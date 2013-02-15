@@ -6,8 +6,6 @@
 # raspi-config http://github.com/asb/raspi-config
 # thanks to: Alex Bradbury
 
-# IMPORTANT- Do not mess with this verison number 
-# the update script needs it at the moement!
 VERSION=0.0.2
 
 # logging is active atm
@@ -17,8 +15,6 @@ LOG_FILE=$PWD/tweb-config.log
 
 TWEB_HOME=/home/www-tweb
 
-# TODO: may be add some compressed PAYLOAD to the scripts
-#
 # some functions to create the basic recipes and bags.
 # __owner variables will be replaced
 #
@@ -71,31 +67,66 @@ policy: {\"read\": [\"__owner\"], \"create\": [], \"manage\": [\"__owner\"], \"a
 # ===================================================================
 
 #
-# Info screen for a "normal" user
+# Info screen for user
 #
 do_info() {
-  whiptail --msgbox "\
+  whiptail --msgbox --title "Instance Settings" "\
 This tool provides a straight-forward way of doing minimal
-configuration of TiddlyWeb. Although it can be run
-at any time, some of the options may have difficulties if
-you have heavily customised your installation.
+configuration of TiddlyWeb.
 
-The command is: tweb-config
+Although it can be run at any time, some of the options may 
+have difficulties if you have heavily customised your TiddlyWeb instance.
+
+Command inside an instance directory: tweb-config
 " 20 70 1
+}
+
+# Submenu
+# Info screen for a sudoer. The only sudoer should be user: pi
+#
+do_info_patch() {
+  whiptail --msgbox --title "Patch Menu" "\
+This submenu provides some low level functions
+
+* Prepare an instance to be started at boot 
+
+* patch a newly created TWeb instance.
+* undo the patch (pmario only functions!)
+
+" 16 70 1
 }
 
 #
 # Info screen for a sudoer. The only sudoer should be user: pi
 #
 do_info_sudo() {
-  whiptail --msgbox "\
+  whiptail --msgbox --title "Superuser Menu" "\
 This tool provides a straight-forward way of doing minimal
-configuration of TiddlyWeb. Although it can be run
-at any time, some of the options may have difficulties if
-you have heavily customised your installation.
+configuration of TiddlyWeb as root user.
 
-The command is: 'sudo tweb-config' or
-'tweb-config' if you are inside a TW instance directory
+Although it can be run at any time, some of the options may 
+have difficulties if you have heavily customised your installation.
+
+Possible commands are: 
+   'sudo tweb-config' or
+   'tweb-config' if you are inside a TW instance directory
+" 16 70 1
+}
+
+# sudo Submenu
+# Info screen for a sudoer. The only sudoer should be user: pi
+#
+do_info_install() {
+  whiptail --msgbox --title "System Update" "\
+This submenu provides some convenience functions
+
+* to modify system settings to activate daemontools.
+* to activate an exsisting TiddlyWeb instance for autostart. 
+  Only one configuration can be active at the moment!
+* to update this script
+
+* to upgrade the OS.
+
 " 16 70 1
 }
 
@@ -103,7 +134,8 @@ The command is: 'sudo tweb-config' or
 # change the OS user password
 #
 do_change_pass() {
-  whiptail --msgbox "You will now be asked to enter a new password for the pi user" 20 60 1
+  whiptail --msgbox --title "Change Password" \
+  "You will now be asked to enter a new password for the pi user" 20 60 1
   passwd &&
   whiptail --msgbox "Password changed successfully" 20 60 1
 }
@@ -257,10 +289,35 @@ _define_password() {
 }
 
 #
-# Create a new TiddlyWEb user
+# change existing user password
+#
+do_user_password() {
+  local PASSWORD
+
+  do_get_users
+
+  PASSWORD=$(_define_password)
+
+  if [ "$PASSWORD" != "" ] && [ "$TWEB_USER" != "" ]; then
+    twanager userpass $TWEB_USER $PASSWORD
+    if [ $? -eq 0 ]; then
+      _log_text "password changed - user: $TWEB_USER"
+      whiptail --msgbox "Password changed for user: \"$TWEB_USER\""  10 40 
+     else
+      _log_text "change password FAILD - user: $TWEB_USER"
+      whiptail --msgbox "Password not changed!"  10 40
+    fi
+  fi
+}
+
+
+#
+# Create a new TiddlyWeb user
 #
 do_create_user() {
   local PASSWORD
+
+  TWEB_USER="new-user"
 
   do_set_active_user
 
@@ -270,7 +327,7 @@ do_create_user() {
     twanager adduser $TWEB_USER $PASSWORD
     if [ $? -eq 0 ]; then
       _log_text "user created: $TWEB_USER"
-      whiptail --msgbox "The new user: \"$TWEB_USER\" created! - $PASSWORD"  10 40 
+      whiptail --msgbox "The new user: \"$TWEB_USER\" created!"  10 40 
      else
       _log_text "user creation FAILD"
       whiptail --msgbox "No user created!"  10 40
@@ -460,29 +517,63 @@ do_finish() {
 # Interactive user loop without root access
 #
 
-user_menue() {
+user_menu() {
 
 clear
+
 _log_text "=========================="
 
   while true; do
     FUN=$(whiptail --menu "TiddlWeb at home - Active user is: "$TWEB_USER \
-      20 80 12 --cancel-button Finish --ok-button Select \
+      --title "Instance Settings" \
+      18 80 10 --cancel-button Finish --ok-button Select \
       "info" "Information about this tool" \
       "get_users" "1 - Show a list of users" \
-      "get_recipes" "Show existing TiddlyWiki (recipes)" \
-      "get_bags" "Show existing bags" \
       "create_user" "2 - Create a new user" \
       "create_tiddlywiki" "3 - Create a new TiddlyWiki" \
-      "prepare_daemon" "4 - Prepare TWeb for autorun at startup" \
+      "get_recipes" "Show existing TiddlyWiki (recipes)" \
+      "get_bags" "Show existing bags" \
       "user_password" "Set a new user password" \
-      "set_active_user" "Set active user" \
-      "restore_tiddlywebwiki" "(restore) Restore TiddlyWebWiki TODO move 2 subm" \
-      "patch_tiddlywebwiki" "(patch) Prepare TiddlyWebWiki <- move to submenue" \
+      "patch_menu" "(submenu) Prepare instance to run at boot" \
       3>&1 1>&2 2>&3)
     RET=$?
     if [ $RET -eq 1 ]; then
       do_finish
+    elif [ $RET -eq 0 ]; then
+      clear
+      echo "command: $FUN - in action! ..."
+      "do_$FUN" || whiptail --msgbox "There was an error running do_$FUN" 20 60 1
+    else
+      exit 1
+    fi
+  done
+}
+
+#
+# whiptail doesn't provide a menu space line
+#
+do_nothing() {
+  echo ""
+}
+
+#
+# Some low level instance functions for standard user mode
+#
+do_patch_menu() {
+  local BACK=0
+  while [ $BACK == 0 ]; do
+    FUN=$(whiptail --menu "TiddlWeb at home - Active user is: "$TWEB_USER \
+      --title "Patch Instance" \
+      14 80 5 --cancel-button MainMenu --ok-button Select \
+      "info_patch" "Information about this submenu" \
+      "prepare_daemon" "Prepare TWeb for autorun at startup" \
+      "nothing"        "..................................." \
+      "patch_tiddlywebwiki" "(patch) Prepare TiddlyWebWiki" \
+      "restore_tiddlywebwiki" "(restore) Restore TiddlyWebWiki" \
+      3>&1 1>&2 2>&3)
+    RET=$?
+    if [ $RET -eq 1 ]; then
+      BACK=1
     elif [ $RET -eq 0 ]; then
       clear
       echo "command: $FUN - in action! ..."
@@ -505,7 +596,7 @@ do_sudo_upgrade() {
 sudo apt-get -y update
 sudo apt-get -y upgrade
 
-It may take several minutes
+Depending on your SD card this may take several minutes!
 " 15 50 \
     3>&1 1>&2 2>&3
 
@@ -525,9 +616,9 @@ It may take several minutes
 do_sudo_get_dependencies() {
   whiptail --title "Get TiddlyWeb dependencies" --yesno "This command will run:
 
-sudo apt-get install python2.7-dev python-pip git mc htop atop csh
+sudo apt-get install python2.7-dev python-pip git mc htop csh
 
-It may take several minutes
+It may take several minutes!
 " 15 50 \
     3>&1 1>&2 2>&3
 
@@ -685,11 +776,9 @@ remove the links from /service directory!"
 #
 # The final dialog just prints some info about the next steps to the command line
 #
-CMD_TWEB="tweb_message"
-TXT_TWEB="Log in as www-tweb user"
 
 do_tweb_message() {
-  whiptail --title "Final Dialog" --yesno "This menue will be closed now.
+  whiptail --title "Final Dialog" --yesno "This menu will be closed now.
 
 Log in with \"su www-tweb\" - su will ask for the password!
 
@@ -713,22 +802,19 @@ Start \"tweb-config\" (NO sudo) again for more stuff to do!
 #
 # Interactive user loop where root access is needed.
 #
-root_menue() {
+root_menu() {
 clear
 _log_text "=========================="
   while true; do
-    FUN=$(whiptail --title "Superuser menu" \
+    FUN=$(whiptail --title "Superuser Menu" \
       --menu "IMPORTANT: Read the info provided by the commands!" \
-      18 80 10 --cancel-button Finish --ok-button Select \
+      14 80 6 --cancel-button Finish --ok-button Select \
       "info_sudo" "1 - Information about this tool in super user mode" \
-      "sudo_upgrade" "2 - Update the operating system" \
-      "sudo_get_dependencies" "3 - Install TiddlyWeb dependencies" \
-      "sudo_adduser" "4 - Add the www-tweb user to the system" \
-      "sudo_pip_tiddlywebwiki" "5 - Install the TiddlWebWiki system" \
-      "$CMD_TWEB" "6 - $TXT_TWEB" \
-      "sudo_prepare_rc_local" "Activate daemontools boot process" \
-      "sudo_tweb_autostart" "Activate a TWeb project for autostart" \
-      "sudo_update" "Try to upgrade tweb-config" \
+      "sudo_get_dependencies" "2 - Install TiddlyWeb dependencies" \
+      "sudo_adduser" "3 - Add the www-tweb user to the system" \
+      "sudo_pip_tiddlywebwiki" "4 - Install / Update the TiddlWebWiki system" \
+      "tweb_message" "5 - Log in as www-tweb user" \
+      "install_menu" "(submenu) System Update" \
       3>&1 1>&2 2>&3)
     RET=$?
     if [ $RET -eq 1 ]; then
@@ -743,21 +829,49 @@ _log_text "=========================="
   done
 }
 
+
+#==================================
+# Installation menu functions
+
+do_install_menu() {
+  local BACK=0
+  while [ $BACK == 0 ]; do
+    FUN=$(whiptail --title "Sytem Update" \
+      --menu "IMPORTANT: Read the info provided by the commands!" \
+      14 80 6 --cancel-button MainMenu --ok-button Select \
+      "info_install" "Information about system updates / autostart mode" \
+      "sudo_prepare_rc_local" "Activate daemontools boot process" \
+      "sudo_tweb_autostart" "Activate a TWeb project for autostart" \
+      "sudo_update" "Update tweb-config script" \
+      "nothing"       "................................................" \
+      "sudo_upgrade" "Upgrade the operating system" \
+      3>&1 1>&2 2>&3)
+    RET=$?
+    if [ $RET -eq 1 ]; then
+       BACK=1
+    elif [ $RET -eq 0 ]; then
+      clear
+      echo "command: $FUN - in action! ..."
+      "do_$FUN" || whiptail --msgbox "There was an error running do_$FUN" 20 60 1
+    else
+      exit 1
+    fi
+  done
+}
+
 # Everything else needs to be run as root
 if [ $(id -u) -eq 0 ]; then
-    root_menue
+    root_menu
     exit 0
 else
   # test if we are inside a TW instance directory.
   if [ -e $PWD/tiddlywebconfig.py ]; then
-    user_menue
+    user_menu
     exit 0
   else
     echo "-- You need to be user www-tweb inside a TW instance directory (tweb)"
-    echo "-- cd tweb"
+    echo "-- cd tweb or \"twinstance tweb && cd tweb\""
     echo "-- OR: You need to start with 'sudo tweb-config' as user 'pi'"
     exit 1
   fi
 fi
-
-
