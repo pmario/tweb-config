@@ -6,7 +6,7 @@
 # raspi-config http://github.com/asb/raspi-config
 # thanks to: Alex Bradbury
 
-VERSION=0.0.3
+VERSION=0.0.4
 
 # logging is active atm
 # have a look at the log file. It may contain usefull info!
@@ -147,18 +147,22 @@ do_sudo_update() {
   local BAK=`date +%Y.%m.%d-%H-%M-%S`
   cd /home/pi
 
-  mv "$PWD/tweb-config" "$PWD/tweb-config.$BAK"
   wget https://raw.github.com/pmario/tweb-config/master/tweb-config
 
   if [ -f "$PWD/tweb-config" ]; then
-    chown pi:pi "$PWD/tweb-config"
+    mv "/usr/local/bin/tweb-config" "$PWD/tweb-config.$BAK"
+
     chmod +x "$PWD/tweb-config"
+    mv "$PWD/tweb-config" "/usr/local/bin/tweb-config"
+
+    if [ -f "/usr/local/bin/tweb-config" ]; then
+      rm "$PWD/tweb-config.$BAK"
+    fi
     whiptail --msgbox "\"tweb-config\" script updated!" 10 60 1
   else
-    cp "$PWD/tweb-config.$BAK" "$PWD/tweb-config"
-    chown pi:pi "$PWD/tweb-config"
-    chmod +x "$PWD/tweb-config"
-    whiptail --msgbox "ERROR: Something went wrong! Old script reactivated!" 10 60 1
+    #mv "$PWD/tweb-config.$BAK" "/usr/local/bin/tweb-config"
+    #chmod +x "/usr/local/bin/tweb-config"
+    whiptail --msgbox "ERROR: Something went wrong! Old script still in place!" 10 60 1
   fi
 
   exec tweb-config

@@ -1,4 +1,4 @@
-tweb-config - ALPHA
+tweb-config - BETA
 ===========
 
 `tweb-config` is a shell script to get started with TiddlyWeb on the RaspberryPi.
