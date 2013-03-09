@@ -6,36 +6,54 @@
 # raspi-config http://github.com/asb/raspi-config
 # thanks to: Alex Bradbury
 
-VERSION=0.0.4
+VERSION=0.0.8
 
-# logging is active atm
 # have a look at the log file. It may contain usefull info!
-DO_LOGGING=1
-LOG_FILE=$PWD/tweb-config.log
+DO_LOGGING=0
 
+# The verbose log file gets much more info. 
+# If DO_LOGGING=0 and VERBOSE_LOG=1 the logfile should contain CI commands only. 
+# This is usefull to create info for the tiddlyweb devs. 
+# After you did adjust the log fiel you can make it executable and it will do, what tweb-config did.
+VERBOSE_LOG=0
+
+# This file needs to be in a directory, that is writeable to user www-tweb
+LOG_FILE=$PWD/tweb-config.log
+CI_LOG_FILE="$LOG_FILE"
+
+# default home
 TWEB_HOME=/home/www-tweb
 
 # some functions to create the basic recipes and bags.
 # __owner variables will be replaced
 #
-_fake_tmp() {
+_fake_bag_private() {
 echo "Name: __bag_private
 {\"policy\": {\"read\": [\"__owner\"], \"create\": [\"__owner\"], \"manage\": [\"__owner\"], \
 \"accept\": [], \"write\": [\"__owner\"], \"owner\": \"__owner\", \"delete\": [\"__owner\"]}, \
 \"desc\": \"\"}
+"
+}
 
-Name: __bag_public
+_fake_bag_public() {
+echo "Name: __bag_public
 {\"policy\": {\"read\": [], \"create\": [], \"manage\": [\"__owner\"], \"accept\": [], \
 \"write\": [], \"owner\": \"__owner\", \"delete\": []}, \
 \"desc\": \"\"}
+"
+}
 
-Name: __bag_protected
+_fake_bag_protected() {
+echo "Name: __bag_protected
 {\"policy\": {\"read\": [], \"create\": [\"__owner\"], \"manage\": [\"__owner\"], \
 \"accept\": [], \"write\": [\"__owner\"], \"owner\": \"__owner\", \"delete\": [\"__owner\"]}, \
 \"desc\": \"\"}
 "
 }
 
+# twanager recipe needs a "special" text format, that can't be produced with twanager lrecipes yet.
+# curl would be an option, if you have a running environment. Chicken - Egg problem. 
+# this is the hacky way :/
 _fake_recipe_public() {
 echo "desc: __description
 policy: {\"read\": [], \"create\": [], \"manage\": [\"__owner\"], \"accept\": [], \
@@ -138,6 +156,7 @@ do_change_pass() {
   "You will now be asked to enter a new password for the pi user" 20 60 1
   passwd &&
   whiptail --msgbox "Password changed successfully" 20 60 1
+  _log "Change OS password for user: $USER" "# passwd" 
 }
 
 #
@@ -146,17 +165,25 @@ do_change_pass() {
 do_sudo_update() {
   local BAK=`date +%Y.%m.%d-%H-%M-%S`
   cd /home/pi
+  _log "" "cd /home/pi"
 
   wget https://raw.github.com/pmario/tweb-config/master/tweb-config
+  _log "$FUNCNAME - wget new twebconfig from guthub" \
+        "wget https://raw.github.com/pmario/tweb-config/master/tweb-config"
 
   if [ -f "$PWD/tweb-config" ]; then
     mv "/usr/local/bin/tweb-config" "$PWD/tweb-config.$BAK"
+    _log "backup old tweb-config" "mv /usr/local/bin/tweb-config \$PWD/tweb-config.$BAK"
 
     chmod +x "$PWD/tweb-config"
+    _log "make new tweb-config executeable" "chmod +x \$PWD/tweb-config"
+
     mv "$PWD/tweb-config" "/usr/local/bin/tweb-config"
+    _log "move new tweb-config to /usr/local/bin" "mv \$PWD/tweb-config /usr/local/bin/tweb-config"
 
     if [ -f "/usr/local/bin/tweb-config" ]; then
       rm "$PWD/tweb-config.$BAK"
+      _log "remove tweb-config backup file" "rm \$PWD/tweb-config.$BAK"
     fi
     whiptail --msgbox "\"tweb-config\" script updated!" 10 60 1
   else
@@ -168,19 +195,31 @@ do_sudo_update() {
   exec tweb-config
 }
 
-
 #
 # write some text to the tweb-config.log file
 #
-_log_simple() {
-  echo "$1" >> "$LOG_FILE"
+# extract both lines from the log use
+# cat tweb-config.log | grep "^#|\$.*"
+_log() {
+  # extract the following sections from the log file use:
+  # cat tweb-config.log | grep "^#.*"
+  if [ $DO_LOGGING -eq 1 ] && [ "$1" != "" ]; then
+    echo "" >> "$LOG_FILE"
+    echo "# $1" >> "$LOG_FILE"
+  fi
+
+  # extract the following sections from the log file use:
+  # cat tweb-config.log | grep "^\$.*"
+  if [ $VERBOSE_LOG -eq 1 ] && [ "$2" != "" ]; then
+    echo "$2" >> "$CI_LOG_FILE"
+  fi
 }
 
 #
 # write text plus timestamp to the log file
 #
 _log_text(){
-# simple grep to get the info out ...
+# simple grep to get the info ...
 # grep -i "FAIL" tweb-config.log
 # cat tweb-config.log | grep -i "FAIL"
 #
@@ -190,11 +229,11 @@ _log_text(){
 # more specific filter: commands at 14:05 ...
 # cat tweb-config.log | sed -n 's;.*14:05.*\execute command: \(.*\);\1;p'
 #
-
   local TEXT
   if [ $DO_LOGGING -eq 1 ]; then
     TEXT=$(date)
-    echo "$TEXT -> $1" >> "$LOG_FILE"
+    echo "" >> "$LOG_FILE"
+    echo "## $TEXT -> $1" >> "$LOG_FILE"
   fi
 }
 
@@ -207,7 +246,9 @@ do_get_users() {
 
   echo "twanager lusers"
   _log_text "command: twanager lusers"
+
   USERS=$(twanager lusers | awk '{ print $1 " " $1 }')
+  _log "$FUNCNAME - $PWD: " "# twanager lusers | awk '{ print \$1 }'"
   SELECTION=$(whiptail --nocancel  --menu "Found this users: " \
     --title "Existing Users" 20 40 12 $USERS  \
     3>&1 1>&2 2>&3)
@@ -219,9 +260,7 @@ do_get_users() {
 # TODO remove when finised!!
 #
 # the sed covers the first word in "" and the rest in ""
-#  echo "whiptail --menu \"asdf\" --title \"Existing Users\"  20 40 12 \" > /tmp/tmp.txt
 # twanager lusers | sed -n 's;\([^ ]*\) \(.*\); "\1" "\2";p' | tr '\n' ' ' >> /tmp/tmp.txt
-#echo " 3>&1 1>&2 2>&3" >> /tmp/tmp.txt
 }
 
 #
@@ -231,12 +270,14 @@ do_get_recipes() {
   echo "twanager lrecipes"
   _log_text "command: twanager lrecipes"
 
-    RECIPES=$(twanager lrecipes | grep -i -E -v "^\(.+\)" | awk '{ print $1 " " $1 }')
-    whiptail --nocancel --menu "This are the existing TiddlyWikies" --title "Existing TWs" 20 60 12 $RECIPES \
-      3>&1 1>&2 2>&3
-
-#      whiptail --msgbox --title "Existing TiddlyWiki's" "$RECIPES" 10 40
+  RECIPES=$(twanager lrecipes | grep -i -E -v "^\(.+\)" | awk '{ print $1 " " $1 }')
+  _log "$FUNCNAME - $PWD: " "# twanager lrecipes | grep -i -E -v \"^\(.+\)\" | awk '{ print \$1 }'"
+  
+  whiptail --nocancel --menu "This are the existing TiddlyWikies" --title "Existing TWs" 20 60 12 $RECIPES \
+    3>&1 1>&2 2>&3
 }
+
+# do_get_recipes && exit 1
 
 #
 # Display a bags list form database
@@ -246,12 +287,17 @@ do_get_bags() {
 #      whiptail --textbox --title "Existing bags" /tmp/bags.txt 10 40
 
   echo "twanager lbags"
-  _log_text "command: twanager lbags"
+  _log_text "$FUNCNAME - $PWD"
+  _log "read existing bags" "# twanager lbags | grep -i Name: | awk '{ print \$2 }' "
+
   BAGS=$(twanager lbags | grep -i Name: | awk '{ print $2 " " $2}' | tr '\n' ' ' )
   whiptail --nocancel --menu "This are the existing bags" --title "Existing bags" 20 60 12 $BAGS \
     3>&1 1>&2 2>&3
 }
 
+# do_get_bags && exit 1
+
+# init TWEB_USER
 if [ -z $TWEB_USER ]; then
   TWEB_USER="YourName"
 fi
@@ -269,7 +315,7 @@ do_set_active_user() {
 }
 
 #
-# Define the TiddlyWeb password. NOT the system pw
+# this function returns a TiddlyWeb password. NOT the system pw
 #
 _define_password() {
   local PW_B
@@ -293,7 +339,7 @@ _define_password() {
 }
 
 #
-# change existing user password
+# change tweb instance user password
 #
 do_user_password() {
   local PASSWORD
@@ -305,39 +351,46 @@ do_user_password() {
   if [ "$PASSWORD" != "" ] && [ "$TWEB_USER" != "" ]; then
     twanager userpass $TWEB_USER $PASSWORD
     if [ $? -eq 0 ]; then
-      _log_text "password changed - user: $TWEB_USER"
+      _log_text "($FUNCNAME) password changed - user: $TWEB_USER"
       whiptail --msgbox "Password changed for user: \"$TWEB_USER\""  10 40 
      else
-      _log_text "change password FAILD - user: $TWEB_USER"
+      _log_text "($FUNCNAME) change password FAILD - user: $TWEB_USER"
       whiptail --msgbox "Password not changed!"  10 40
     fi
   fi
 }
 
+# do_user_password && exit 1
 
 #
 # Create a new TiddlyWeb user
 #
 do_create_user() {
+  _log_text "$FUNCNAME - Create new TiddlyWeb user"
+
   local PASSWORD
 
+  # init user. At the beginning it may be administrator by accident
   TWEB_USER="new-user"
-
   do_set_active_user
 
   PASSWORD=$(_define_password)
 
   if [ "$PASSWORD" != "" ] && [ "$TWEB_USER" != "" ]; then
+    _log "\$PASSWORD, will need to be replaced" "twanager adduser $TWEB_USER \$PASSWORD"
+
     twanager adduser $TWEB_USER $PASSWORD
     if [ $? -eq 0 ]; then
-      _log_text "user created: $TWEB_USER"
+      _log "user created: $TWEB_USER"
       whiptail --msgbox "The new user: \"$TWEB_USER\" created!"  10 40 
      else
-      _log_text "user creation FAILD"
+      _log "user creation FAILD" 
       whiptail --msgbox "No user created!"  10 40
     fi
   fi
 }
+
+# do_create_user && exit 1
 
 # I want to have special names for system stuff. 
 # eg: system should be __system
@@ -362,7 +415,7 @@ do_patch_tiddlywebwiki() {
     mv "$D_RECIPE" "$T_RECIPE"
 
     _log_text "pached: $D_RECIPE"
-    _log_simple "`cat $N_RECIPE`"
+#    _log "`cat $N_RECIPE`"
     _log_text "renamed: $D_RECIPE -> $N_RECIPE"
     _log_text "moved: $D_RECIPE -> $T_RECIPE"
   fi
@@ -378,6 +431,8 @@ do_patch_tiddlywebwiki() {
 #  fi
 }
 
+# do_patch_tiddlywebwiki && exit 1
+
 # Removing the patch is for testing this file only. 
 # It may break stuff, if you copy the backup recipe back to its old position
 # It may have been changed allredy! ....
@@ -389,6 +444,7 @@ do_restore_tiddlywebwiki() {
     mv $BAG_P/__console $BAG_P/console
   fi
 }
+# do_restore_tiddlywebwiki && exit 1
 
 #
 # Define a new recipe name to create a new TiddlyWiki
@@ -397,9 +453,6 @@ _define_recipe_name() {
   RECIPE_NAME=$(whiptail --inputbox --nocancel --title "Create New TiddlyWiki" \
     "New TiddlyWiki Name:" 10 40 "MyNewTW" \
     3>&1 1>&2 2>&3)
-
-#  whiptail --msgbox "user was set to: "$RECIPE_NAME 10 40
-#  _log_text "TW name set to: $RECIPE_NAME"
 }
 
 # server IP and  port default value
@@ -412,7 +465,6 @@ _define_port() {
     3>&1 1>&2 2>&3)
 
   whiptail --msgbox "server address will be similar to: "$_IP":"$SERVER_PORT 10 40
-  _log_text "server port set to: $SERVER_PORT"
 }
 
 _get_port() {
@@ -426,6 +478,8 @@ _get_port() {
 # Create directories and "run" files for service daemon
 #
 do_prepare_daemon() {
+  _log_text "$FUNCNAME - $PWD: prepare instance to be autostarted at boot."
+
   local DIR="$PWD"
   local RUN_FILE="$DIR"/service/run
   local LOG_RUN_FILE="$DIR"/service/log/run
@@ -437,11 +491,16 @@ do_prepare_daemon() {
   if [ $? -eq 0 ] && [ ! -f "$RUN_FILE" ]; then
 
     _define_port
-
+    _log "Server Port set to: $SERVER_PORT"
+    
     echo create the /service directory in: "$PWD"
     mkdir "$DIR"/service
     mkdir "$DIR"/service/log
     mkdir "$DIR"/service/log/main
+
+    # these commands are not sudo
+    _log "create the /service directory in: $PWD" \
+          "mkdir \$PWD/service && mkdir \$PWD/service/log && mkdir \$PWD/service/log/main"
 
     echo create "$RUN_FILE"
 
@@ -461,78 +520,144 @@ else
   exec setuidgid www-tweb authbind twanager server
 fi" > "$RUN_FILE"
 
+    _log "To see the daemon start script type:" "# cat $RUN_FILE"
+    
     chmod +x "$RUN_FILE"
+    _log "Make daemon start script executable" "chmod +x $RUN_FILE"
 
     echo create "$LOG_RUN_FILE"
     echo "#!/bin/sh
 exec setuidgid www-tweb multilog t ./main" > "$LOG_RUN_FILE"
 
+    _log "To see the daemon log script type:" "# cat $LOG_RUN_FILE"
+
     chmod +x "$LOG_RUN_FILE"
+    _log "Make daemon log script executable" "chmod +x $LOG_RUN_FILE"
+
     echo '---- done ----'
+    _log_text "$FUNCNAME - instance daemon preparation in: $DIR/service - done"
     sleep 2
   else
     whiptail --msgbox "User canceled or run files exist" 10 40
+    _log_text "Instance daemon preparation canceled: User canceled or run files exist"
   fi
 }
+# do_prepare_daemon && exit 1
 
 #
 # All steps needed to create a new TiddlyWiki
 #
 do_create_tiddlywiki() {
+  _log_text "$FUNCNAME - Create a new TiddlyWiki"
+
   _define_recipe_name
 
   do_get_users
+
+  echo ""
+  echo "Be patient - It may take several seconds :)"
 
   whiptail --yesno "Create a new TiddlyWiki named: $RECIPE_NAME \
     for the user: $TWEB_USER " 10 50 \
     3>&1 1>&2 2>&3
 
-RECIPE_DESCRIPTION="Here comes the TW description TODO"
+  RECIPE_DESCRIPTION="Here comes the TW description TODO"
 
   # name dialog must be OK, recipe must not exists, recipe name must be set.
   if [ $? -eq 0 ] && [ ! -f $RECIPE_NAME"__public" ] && [ $RECIPE_NAME != "" ]; then
 
-# TODO ugly ugly ugly 
-#    cat store/recipes/__recipe_public | \
+    # TODO fix this! 
+
+    local TMP_PRE=_recipe_"$RECIPE_NAME"
+    local TMP_R_PRIVATE="$TMP_PRE"_private
+    local TMP_R_PUBLIC="$TMP_PRE"_public
+
+    local R_PRIVATE="$RECIPE_NAME"_private
+    local R_PUBLIC="$RECIPE_NAME"_public
+    
     _fake_recipe_public | \
       sed -e 's;__owner;'$TWEB_USER';g' -e 's;__bag;'$RECIPE_NAME';g' \
-          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' >store/recipes/"$RECIPE_NAME"_public
+          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' > "$TMP_R_PUBLIC"
+          
+    _log "Temporary recipe file: $TMP_R_PUBLIC" "cat <<EOT > $TMP_R_PUBLIC"
+    _log "" "`cat $TMP_R_PUBLIC`"
+    _log "" "EOT"
 
-#    cat store/recipes/__recipe_private | \
     _fake_recipe_private | \
       sed -e 's;__owner;'$TWEB_USER';g' -e 's;__bag;'$RECIPE_NAME';g' \
-          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' >store/recipes/"$RECIPE_NAME"_private
+          -e 's;__description;'"$RECIPE_DESCRIPTION"';g' > "$TMP_R_PRIVATE"
 
-    # this works but imo is ugly
-    # any help is HIGHLIY appreciated!
-    #
+    _log "Temporary recipe file: $TMP_R_PRIVATE" "cat <<EOT > $TMP_R_PRIVATE"
+    _log "" "`cat $TMP_R_PRIVATE`"
+    _log "" "EOT"
+
+    # give some visual feedback
+    echo "creating recipes ..."
+
+    twanager recipe "$R_PUBLIC" < "$TMP_R_PUBLIC"
+    _log "Create $R_PUBLIC recipe" "twanager recipe $R_PUBLIC < $TMP_R_PUBLIC"
+
+    twanager recipe "$R_PRIVATE" < "$TMP_R_PRIVATE"
+    _log "Create $R_PRIVATE recipe" "twanager recipe $R_PRIVATE < $TMP_R_PRIVATE"
+
+    # this works but imo is ugly. TODO make it better
     twanager lbags __bag_private __bag_public __bag_protected > tmp
 
     # TODO feature request: twanager should have a silent option.
     # if twanager fails tmp is zerro size
     if [ ! -s tmp ]; then
        echo ""
-       echo "ERROR reading bag info - use default settings!"
-       _fake_tmp > tmp
+       echo "INFO: Use tweb-config default settings! - No template bags available"
+       _fake_bag_private | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_private
+       _fake_bag_public  | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_public
+       _fake_bag_protected | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_protected
+    else
+      cat tmp | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_private
+      cat tmp | sed -n 5p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_public
+      cat tmp | sed -n 8p | sed -e 's;__owner;'$TWEB_USER';g' > "$PWD"/_bag_protected
     fi
 
-# hardcore TODO fix 
-    cat tmp | sed -n 2p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_private
-    cat tmp | sed -n 5p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_public
-    cat tmp | sed -n 8p | sed -e 's;__owner;'$TWEB_USER';g' | twanager bag "$RECIPE_NAME"_protected
+    # give some feedback
+    echo "creating bags ..."
 
-#    cp -T store/recipes/__recipe_public store/recipes/$RECIPE_NAME"_public"
-#    cp -T store/recipes/__recipe_private store/recipes/$RECIPE_NAME"_private"
+    # hardcore TODO fix 
+    twanager bag "$RECIPE_NAME"_private   < "$PWD"/_bag_private
+    twanager bag "$RECIPE_NAME"_public    < "$PWD"/_bag_public
+    twanager bag "$RECIPE_NAME"_protected < "$PWD"/_bag_protected
 
-# hardcore TODO fix 
-#    cp -r -T store/bags/__bag_private store/bags/$RECIPE_NAME"_private"
-#    cp -r -T store/bags/__bag_protected store/bags/$RECIPE_NAME"_protected"
-#    cp -r -T store/bags/__bag_public store/bags/$RECIPE_NAME"_public"
+    # logging the above 3 commands for VERBOSE mode
+    local BAG="$RECIPE_NAME"_private
+    _log "Temporary bag: $BAG" "cat <<EOT > _bag_private"
+    _log "" "`cat _bag_private`"
+    _log "" "EOT"
+    _log "Create private bag: $BAG" "twanager bag $BAG < _bag_private"
+    
+    BAG="$RECIPE_NAME"_public
+    _log "Temporary bag: $BAG" "cat <<EOT > _bag_public"
+    _log "" "`cat _bag_public`"
+    _log "" "EOT"
+    _log "Create public bag: $BAG" "twanager bag $BAG < _bag_public"
+
+    BAG="$RECIPE_NAME"_protected
+    _log "Temporary bag: $BAG" "cat <<EOT > _bag_protected"
+    _log "" "`cat _bag_protected`"
+    _log "" "EOT"
+    _log "Create protected bag: $BAG" "twanager bag $BAG < _bag_protected"
+
+    # log only one line for DEBUG mode.
+    _log_text "TiddlyWiki: $RECIPE_NAME for user: $TWEB_USER - created"
 
   else
+    _log_text "ERROR create: TiddlyWiki: $RECIPE_NAME for user: $TWEB_USER"
     whiptail --msgbox "ERROR: No TW created" 10 40
   fi
+  
+  # if verbose logging is active, don't delete the temporary files. 
+  if [ $VERBOSE_LOG -ne 1 ]; then
+    rm _*
+  fi
 }
+#do_create_tiddlywiki && exit 1
 
 do_finish() {
   echo ""
@@ -551,7 +676,7 @@ user_menu() {
 
 clear
 
-_log_text "=========================="
+_log_text "== enter user mode ===="
 
   while true; do
     FUN=$(whiptail --menu "TiddlWeb at home - Active user is: "$TWEB_USER \
@@ -635,6 +760,8 @@ Depending on your SD card this may take several minutes!
     apt-get -y update
     apt-get -y upgrade
 
+    _log "Update the system" "# apt-get -y update"
+    _log "" "# apt-get -y upgrade"
     echo ---- done ----
     sleep 5
   fi
@@ -646,7 +773,7 @@ Depending on your SD card this may take several minutes!
 do_sudo_get_dependencies() {
   whiptail --title "Get TiddlyWeb dependencies" --yesno "This command will run:
 
-sudo apt-get install python2.7-dev python-pip git mc htop csh
+sudo apt-get install python2.7-dev python-pip git mc htop csh authbind
 
 It may take several minutes!
 " 15 50 \
@@ -654,7 +781,9 @@ It may take several minutes!
 
   # name dialog must be OK,
   if [ $? -eq 0 ]; then
-    apt-get -y install python2.7-dev python-pip git mc htop csh
+    apt-get -y install python2.7-dev python-pip git mc htop csh authbind
+    _log "Install tiddlyweb dependencies" \
+          "# apt-get -y install python2.7-dev python-pip git mc htop csh authbind"
     echo ---- done ----
     sleep 5
   fi
@@ -677,11 +806,11 @@ You will be asked for the initial password!
   # name dialog must be OK, 
   if [ $? -eq 0 ]; then
     adduser www-tweb
+    _log "add \"www-tweb\" user to the system" "# adduser www-tweb"
     echo ---- done ----
     sleep 5
   fi
 }
-
 
 #
 # install tiddlywebwiki package from pypi repositories
@@ -700,11 +829,11 @@ It may take several minutes!
   # name dialog must be OK, 
   if [ $? -eq 0 ]; then
     pip install -U tiddlywebwiki
+    _log "pip install tiddlywebwiki" "# pip install -U tiddlywebwiki"
     echo ---- done ----
     sleep 5
   fi
 }
-
 
 #
 # BE CAREFUL when testing. Rename the ETC_RC_LOCAL variable
@@ -757,6 +886,9 @@ echo -----------------------------------------------\n
     else 
       whiptail --msgbox "$ETC_RC_LOCAL is allready modified. No changes applyed!" 10 40
     fi
+    
+    _log "modified $ETC_RC_LOCAL to activate daemontools at boot" "# cat $ETC_RC_LOCAL" 
+#    _log "" "`cat $ETC_RC_LOCAL`"
     echo ---- done ----
     sleep 3
   fi
@@ -770,12 +902,13 @@ do_sudo_tweb_autostart() {
   local SELECTION
   local SERVICE_NAME
 
-  echo "list instances"
-  _log_text "command: find /home/www-tweb -name run | sed -n 's;.*-tweb/\([^/]*\)/service/run.*;\1 \1;p'"
+  echo "List instances - make sure you did prepare the tweb instances!"
+  _log "command, to find existing daemon configurations" \
+        "# find /home/www-tweb -name run | sed -n 's;.*-tweb/\([^/]*\)/service/run.*;\1;p'"
 
   #INSTANCES=$(ls -w 1 "$TWEB_HOME" | awk '{ print $1 " " $1 }')
   
-  # only directories which contain tiddlywebconfig.py are instances
+  # only directories which contain tiddlywebconfig.py are possible instances
   #INSTANCES=$(find /home/www-tweb . -maxdepth 2 -name "tiddlywebconfig.py" | \
   #            sed -n 's;.*-tweb/\(.*\)/tiddlywebconfig.py;\1 \1;p')
 
@@ -803,19 +936,24 @@ Select one:" \
       echo it takes up to 5 seconds!
       ln -s "$TWEB_HOME"/"$SELECTION"/service /service/"$SERVICE_NAME"
 
+      _log "activate instance: $SELECTION as service" \
+            "# ln -s $TWEB_HOME/$SELECTION/service /service/$SERVICE_NAME"
+
       sleep 6
       svok /service/"$SERVICE_NAME"
       if [ $? -eq 0 ]; then
         whiptail --msgbox "process started successfully!" 10 40
       else
+        _log "ERROR: svok /service/$SERVICE_NAME" "# cat /var/log/svscan"
+        #_log "`cat /var/log/svscan`"
         cat /var/log/svscan
         sleep 10
-#       whiptail --msgbox "ERROR: type cat /var/log/svscan to see what's wrong" 10 40
       fi
     else
       echo "there is an instance running. It must be down.
 tweb-config can't handle this situation yet!
-
+use \"sudo svc -d /service/????\" to close a runnig instance
+or
 remove the links from /service directory!"
       sleep 10
     fi
@@ -853,7 +991,7 @@ Start \"tweb-config\" (NO sudo) again for more stuff to do!
 #
 root_menu() {
 clear
-_log_text "=========================="
+_log_text "== enter root mode ===="
   while true; do
     FUN=$(whiptail --title "Superuser Menu" \
       --menu "IMPORTANT: Read the info provided by the commands!" \
